@@ -1,0 +1,44 @@
+name: Deploy Webhook Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar variáveis de ambiente obrigatórias
+        run: |
+          echo "Verificando secrets..."
+          : "${SUPABASE_URL:?SUPABASE_URL não definido}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY não definido}"
+          : "${GOOGLE_SPREADSHEET_ID:?GOOGLE_SPREADSHEET_ID não definido}"
+          : "${GOOGLE_SERVICE_ACCOUNT_JSON:?GOOGLE_SERVICE_ACCOUNT_JSON não definido}"
+          echo "✅ Todos os secrets estão presentes."
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      # ── Descomente o bloco abaixo se usar Railway, Render ou Fly.io ──────────
+      # - name: Deploy para Railway
+      #   uses: berviantoleo/railway-deploy@main
+      #   with:
+      #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
+      #     service: supabase-to-sheets
