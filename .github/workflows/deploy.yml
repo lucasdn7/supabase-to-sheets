@@ -1,5 +1,8 @@
 name: Deploy Webhook Server
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   push:
     branches:
@@ -11,10 +14,10 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: "npm"
@@ -23,21 +26,35 @@ jobs:
         run: npm ci
 
       - name: Verificar variáveis de ambiente obrigatórias
+        id: check-secrets
         run: |
           echo "Verificando secrets..."
-          : "${SUPABASE_URL:?SUPABASE_URL não definido}"
-          : "${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY não definido}"
-          : "${GOOGLE_SPREADSHEET_ID:?GOOGLE_SPREADSHEET_ID não definido}"
-          : "${GOOGLE_SERVICE_ACCOUNT_JSON:?GOOGLE_SERVICE_ACCOUNT_JSON não definido}"
+          missing=()
+
+          for var_name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GOOGLE_SPREADSHEET_ID GOOGLE_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!var_name}" ]; then
+              missing+=("$var_name")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "⚠️ Secrets ausentes: ${missing[*]}"
+            echo "⚠️ Configure os valores em: Settings → Secrets and variables → Actions."
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           echo "✅ Todos os secrets estão presentes."
+          echo "can_deploy=true" >> "$GITHUB_OUTPUT"
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID || vars.GOOGLE_SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || vars.GOOGLE_SERVICE_ACCOUNT_JSON }}
 
       # ── Descomente o bloco abaixo se usar Railway, Render ou Fly.io ──────────
       # - name: Deploy para Railway
+      #   if: steps.check-secrets.outputs.can_deploy == 'true'
       #   uses: berviantoleo/railway-deploy@main
       #   with:
       #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
