@@ -27,10 +27,9 @@ async function main() {
   console.log(
     `✅ Sincronização concluída. Sucesso: ${successCount} | Falhas: ${errorCount}`
   );
+
   if (errorCount > 0) {
-    console.warn(
-      "⚠️ A sincronização terminou com falhas parciais. Verifique os logs acima."
-    );
+    process.exitCode = 1;
   }
 }
 
