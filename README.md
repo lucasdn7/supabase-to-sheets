@@ -118,7 +118,8 @@ npx ngrok http 3000
 
 ### 6. Configurar GitHub Actions (deploy automático)
 
-Adicione os seguintes **secrets** no repositório (Settings → Secrets → Actions):
+Adicione os seguintes **secrets** (ou **repository variables**) no repositório em  
+**Settings → Secrets and variables → Actions**:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -127,6 +128,7 @@ Adicione os seguintes **secrets** no repositório (Settings → Secrets → Acti
 - `WEBHOOK_SECRET`
 
 O workflow em `.github/workflows/deploy.yml` valida os secrets a cada push na branch `main`.  
+Se algum valor estiver ausente, o workflow exibirá aviso com os nomes faltantes.
 Para deploy automático, descomente o bloco do serviço de sua escolha (Railway, Render, Fly.io).
 
 ---
