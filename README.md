@@ -30,11 +30,13 @@ Google Sheets (aba: GEINFRA (Obras))
 | `regional_nucleus_id`     | NÚCLEO ORIGEM         |
 | `municipality_id`         | MUNICÍPIO             |
 | `object`                  | OBJETO                |
-| `total_concedent_value`   | VALOR CONCEDENTE      |
+| `tipo_de_repasse`         | TIPO DE REPASSE       |
+| `total_concedent_value`   | CONCEDENTE            |
 | `total_proponente_value`  | CONTRAPARTIDA         |
 | `licitado_value`          | VALOR LICITADO        |
 | `vigencia_date`           | VIGÊNCIA PT           |
 | `portaria_number`         | PORTARIA              |
+| `contrato_assinado`       | CONTRATO ASSINADO?    |
 
 > O número do processo (SGPE) é exibido como link clicável usando o campo `link_plataforma_governo` do banco.
 
@@ -116,7 +118,8 @@ npx ngrok http 3000
 
 ### 6. Configurar GitHub Actions (deploy automático)
 
-Adicione os seguintes **secrets** no repositório (Settings → Secrets → Actions):
+Adicione os seguintes **secrets** (ou **repository variables**) no repositório em  
+**Settings → Secrets and variables → Actions**:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -125,6 +128,7 @@ Adicione os seguintes **secrets** no repositório (Settings → Secrets → Acti
 - `WEBHOOK_SECRET`
 
 O workflow em `.github/workflows/deploy.yml` valida os secrets a cada push na branch `main`.  
+Se algum valor estiver ausente, o workflow exibirá aviso com os nomes faltantes.
 Para deploy automático, descomente o bloco do serviço de sua escolha (Railway, Render, Fly.io).
 
 ---
