@@ -9,12 +9,18 @@ const HEADERS = [
   "NÚCLEO ORIGEM",
   "MUNICÍPIO",
   "OBJETO",
-  "VALOR CONCEDENTE",
+  "TIPO DE REPASSE",
+  "CONCEDENTE",
   "CONTRAPARTIDA",
   "VALOR LICITADO",
   "VIGÊNCIA PT",
   "PORTARIA",
+  "CONTRATO ASSINADO?",
 ];
+
+function getTransferType(record) {
+  return record?.tipo_de_repasse ?? "";
+}
 
 function getAuthClient() {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
@@ -43,6 +49,12 @@ function recordToRow(record) {
   const formatCurrency = (val) =>
     val != null ? Number(val) : "";
 
+  const formatSignedContract = (val) => {
+    if (val == null) return "";
+    if (typeof val === "boolean") return val ? "SIM" : "NÃO";
+    return String(val);
+  };
+
   const formatDate = (val) => {
     if (!val) return "";
     // Aceita formato ISO ou string — devolve DD/MM/AAAA
@@ -56,11 +68,13 @@ function recordToRow(record) {
     nucleus,                                       // NÚCLEO ORIGEM
     municipality,                                  // MUNICÍPIO
     record.object ?? "",                           // OBJETO
-    formatCurrency(record.total_concedent_value),  // VALOR CONCEDENTE
+    getTransferType(record),                       // TIPO DE REPASSE
+    formatCurrency(record.total_concedent_value),  // CONCEDENTE
     formatCurrency(record.total_proponente_value), // CONTRAPARTIDA
     formatCurrency(record.licitado_value),         // VALOR LICITADO
     formatDate(record.vigencia_date),              // VIGÊNCIA PT
     record.portaria_number ?? "",                  // PORTARIA
+    formatSignedContract(record.contrato_assinado), // CONTRATO ASSINADO?
   ];
 }
 
@@ -69,7 +83,7 @@ function recordToRow(record) {
  * Se a aba estiver vazia, escreve os cabeçalhos.
  */
 async function ensureHeaders(sheets) {
-  const range = `'${SHEET_NAME}'!A1:I1`;
+  const range = `'${SHEET_NAME}'!A1:K1`;
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range,
@@ -127,13 +141,16 @@ async function upsertProcess(record) {
 
   const row = recordToRow(record);
   const processNumber = record.process_number;
+  if (!processNumber) {
+    throw new Error("Processo sem process_number (SGPE).");
+  }
 
   const index = await buildProcessIndex(sheets);
 
   if (index.has(processNumber)) {
     // ── ATUALIZAÇÃO ──────────────────────────────────────────
     const rowNumber = index.get(processNumber);
-    const range = `'${SHEET_NAME}'!A${rowNumber}:I${rowNumber}`;
+    const range = `'${SHEET_NAME}'!A${rowNumber}:K${rowNumber}`;
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
@@ -147,7 +164,7 @@ async function upsertProcess(record) {
     // ── INSERÇÃO ─────────────────────────────────────────────
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${SHEET_NAME}'!A:I`,
+      range: `'${SHEET_NAME}'!A:K`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
       requestBody: { values: [row] },
