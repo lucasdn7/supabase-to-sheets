@@ -1,23 +1,20 @@
 # supabase-to-sheets
 
-Sincronização em tempo real entre o Supabase e o Google Sheets.  
-Toda vez que um processo é **criado ou editado** na tabela `processes`, o webhook atualiza automaticamente a planilha **GEINFRA (Obras)**.
+Sincronização entre o Supabase e o Google Sheets.  
+Por padrão (neste repositório), a sincronização é feita **exclusivamente por GitHub Actions** a cada 5 minutos, sem necessidade de servidor público.
 
 ---
 
-## Arquitetura
+## Arquitetura (modo GitHub Actions)
 
 ```
-Seu site
-   │  cria/edita processo
+GitHub Actions (cron a cada 5 min)
+   │  executa script de sync
    ▼
 Supabase (tabela: processes)
-   │  dispara Database Webhook
+   │  busca todos os processos via service role
    ▼
-Este servidor Express (POST /webhook/process)
-   │  busca dados completos com joins
-   ▼
-Google Sheets (aba: GEINFRA (Obras))
+Google Sheets (aba configurada em GOOGLE_SHEET_NAME)
 ```
 
 ---
@@ -30,11 +27,13 @@ Google Sheets (aba: GEINFRA (Obras))
 | `regional_nucleus_id`     | NÚCLEO ORIGEM         |
 | `municipality_id`         | MUNICÍPIO             |
 | `object`                  | OBJETO                |
-| `total_concedent_value`   | VALOR CONCEDENTE      |
+| `tipo_de_repasse`         | TIPO DE REPASSE       |
+| `total_concedent_value`   | CONCEDENTE            |
 | `total_proponente_value`  | CONTRAPARTIDA         |
 | `licitado_value`          | VALOR LICITADO        |
 | `vigencia_date`           | VIGÊNCIA PT           |
 | `portaria_number`         | PORTARIA              |
+| `contrato_assinado`       | CONTRATO ASSINADO?    |
 
 > O número do processo (SGPE) é exibido como link clicável usando o campo `link_plataforma_governo` do banco.
 
@@ -65,8 +64,8 @@ cp .env.example .env
 | `GOOGLE_SPREADSHEET_ID`      | ID da planilha no Google Sheets                        |
 | `GOOGLE_SHEET_NAME`          | Nome da aba (padrão: `GEINFRA (Obras)`)                |
 | `GOOGLE_SERVICE_ACCOUNT_JSON`| JSON da conta de serviço Google (em uma linha)         |
-| `WEBHOOK_SECRET`             | Secret para validar chamadas do Supabase               |
 | `PORT`                       | Porta do servidor (padrão: `3000`)                     |
+| `WEBHOOK_SECRET`             | (Opcional) usado apenas no modo webhook via servidor   |
 
 ---
 
@@ -82,7 +81,26 @@ cp .env.example .env
 
 ---
 
-### 4. Configurar o Webhook no Supabase
+### 4. Configurar GitHub Actions (modo sem servidor)
+
+Adicione os seguintes **secrets** (ou **repository variables**) no repositório em  
+**Settings → Secrets and variables → Actions**:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GOOGLE_SPREADSHEET_ID`
+- `GOOGLE_SHEET_NAME`
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
+
+Depois:
+1. Vá em **Actions → Sync Supabase to Sheets**.
+2. Execute manualmente em **Run workflow** para o primeiro teste.
+3. O workflow também roda automaticamente a cada 5 minutos.
+4. Se algum secret/variable estiver faltando, o workflow não sincroniza e mostra quais itens precisam ser preenchidos.
+
+---
+
+### 5. (Opcional) Configurar Webhook no Supabase via servidor Express
 
 1. No painel Supabase: **Database → Webhooks → Create a new hook**
 2. Configure:
@@ -99,7 +117,7 @@ cp .env.example .env
 
 ---
 
-### 5. Rodar localmente (para testes)
+### 6. Rodar localmente (opcional)
 
 ```bash
 npm run dev
@@ -112,20 +130,9 @@ npx ngrok http 3000
 # Copie a URL gerada (ex: https://abc123.ngrok.io) e use no webhook do Supabase
 ```
 
----
+### 7. Configurar GitHub Actions de deploy do servidor (opcional)
 
-### 6. Configurar GitHub Actions (deploy automático)
-
-Adicione os seguintes **secrets** no repositório (Settings → Secrets → Actions):
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GOOGLE_SPREADSHEET_ID`
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
-- `WEBHOOK_SECRET`
-
-O workflow em `.github/workflows/deploy.yml` valida os secrets a cada push na branch `main`.  
-Para deploy automático, descomente o bloco do serviço de sua escolha (Railway, Render, Fly.io).
+O workflow `.github/workflows/deploy.yml` é opcional e só é necessário se você quiser manter o modo webhook em tempo real com servidor HTTP.
 
 ---
 
@@ -154,11 +161,13 @@ Recomendamos o uso do **Railway** ou **Render** (ambos têm plano gratuito):
 supabase-to-sheets/
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml       # CI/CD GitHub Actions
+│       ├── deploy.yml                    # (Opcional) deploy do servidor HTTP
+│       └── sync-supabase-to-sheets.yml   # Sincronização via GitHub Actions (cron/manual)
 ├── src/
 │   ├── server.js            # Servidor Express + endpoint webhook
 │   ├── supabase.js          # Busca de processos com joins
-│   └── sheets.js            # Upsert no Google Sheets
+│   ├── sheets.js            # Upsert no Google Sheets
+│   └── sync-all.js          # Sincronização completa (usada no workflow)
 ├── .env.example
 ├── .gitignore
 ├── package.json
