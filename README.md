@@ -96,6 +96,7 @@ Depois:
 1. Vá em **Actions → Sync Supabase to Sheets**.
 2. Execute manualmente em **Run workflow** para o primeiro teste.
 3. O workflow também roda automaticamente a cada 5 minutos.
+4. Se algum secret/variable estiver faltando, o workflow não sincroniza e mostra quais itens precisam ser preenchidos.
 
 ---
 
@@ -129,22 +130,9 @@ npx ngrok http 3000
 # Copie a URL gerada (ex: https://abc123.ngrok.io) e use no webhook do Supabase
 ```
 
----
+### 7. Configurar GitHub Actions de deploy do servidor (opcional)
 
-### 6. Configurar GitHub Actions (deploy automático)
-
-Adicione os seguintes **secrets** (ou **repository variables**) no repositório em  
-**Settings → Secrets and variables → Actions**:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GOOGLE_SPREADSHEET_ID`
-- `GOOGLE_SERVICE_ACCOUNT_JSON`
-- `WEBHOOK_SECRET`
-
-O workflow em `.github/workflows/deploy.yml` valida os secrets a cada push na branch `main`.  
-Se algum valor estiver ausente, o workflow exibirá aviso com os nomes faltantes.
-Para deploy automático, descomente o bloco do serviço de sua escolha (Railway, Render, Fly.io).
+O workflow `.github/workflows/deploy.yml` é opcional e só é necessário se você quiser manter o modo webhook em tempo real com servidor HTTP.
 
 ---
 

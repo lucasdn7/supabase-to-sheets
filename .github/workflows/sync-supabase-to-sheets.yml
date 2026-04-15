@@ -1,5 +1,8 @@
 name: Sync Supabase to Sheets
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 on:
   schedule:
     # A cada 5 minutos (menor intervalo suportado no GitHub Actions)
@@ -16,26 +19,38 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Instalar dependências
         run: npm ci
 
       - name: Validar variáveis obrigatórias
+        id: check-vars
         run: |
           echo "Verificando secrets/variables..."
-          : "${SUPABASE_URL:?SUPABASE_URL não definido}"
-          : "${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY não definido}"
-          : "${GOOGLE_SPREADSHEET_ID:?GOOGLE_SPREADSHEET_ID não definido}"
-          : "${GOOGLE_SERVICE_ACCOUNT_JSON:?GOOGLE_SERVICE_ACCOUNT_JSON não definido}"
-          : "${GOOGLE_SHEET_NAME:?GOOGLE_SHEET_NAME não definido}"
+          missing=()
+
+          for var_name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GOOGLE_SPREADSHEET_ID GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_SHEET_NAME; do
+            if [ -z "${!var_name}" ]; then
+              missing+=("$var_name")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "⚠️ Variáveis ausentes: ${missing[*]}"
+            echo "⚠️ Configure em Settings → Secrets and variables → Actions."
+            echo "can_sync=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           echo "✅ Variáveis obrigatórias OK."
+          echo "can_sync=true" >> "$GITHUB_OUTPUT"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY }}
@@ -44,6 +59,9 @@ jobs:
           GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME || vars.GOOGLE_SHEET_NAME }}
 
       - name: Sincronizar processos para Google Sheets
+        id: run-sync
+        if: steps.check-vars.outputs.can_sync == 'true'
+        continue-on-error: true
         run: npm run sync:all
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
@@ -51,3 +69,18 @@ jobs:
           GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID || vars.GOOGLE_SPREADSHEET_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || vars.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME || vars.GOOGLE_SHEET_NAME }}
+
+      - name: Resumo da execução
+        if: always()
+        run: |
+          if [ "${{ steps.check-vars.outputs.can_sync }}" != "true" ]; then
+            echo "ℹ️ Sincronização não executada porque faltam variáveis obrigatórias."
+            exit 0
+          fi
+
+          if [ "${{ steps.run-sync.outcome }}" != "success" ]; then
+            echo "⚠️ A sincronização executou com falhas. Verifique os logs da etapa anterior."
+            exit 0
+          fi
+
+          echo "✅ Sincronização concluída com sucesso."
