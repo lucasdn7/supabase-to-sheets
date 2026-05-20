@@ -1,0 +1,89 @@
+name: Sync Process to GEINFRA Sheets
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  # Disparado via Supabase Database Webhook ou chamada externa
+  # Payload esperado: { "event_type": "process-upsert", "client_payload": { "process_id": "uuid" } }
+  repository_dispatch:
+    types: [process-upsert]
+
+  # Permite rodar manualmente informando o process_id
+  workflow_dispatch:
+    inputs:
+      process_id:
+        description: "ID (UUID) do processo a sincronizar"
+        required: true
+        type: string
+
+concurrency:
+  group: sync-geinfra-${{ github.event.client_payload.process_id || inputs.process_id }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v5
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar variáveis obrigatórias
+        id: check-vars
+        run: |
+          echo "Verificando secrets..."
+          missing=()
+
+          for var_name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GOOGLE_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!var_name}" ]; then
+              missing+=("$var_name")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "⚠️ Variáveis ausentes: ${missing[*]}"
+            echo "⚠️ Configure em Settings → Secrets and variables → Actions."
+            echo "can_sync=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          echo "✅ Variáveis obrigatórias OK."
+          echo "can_sync=true" >> "$GITHUB_OUTPUT"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || vars.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Resolver Process ID
+        id: resolve-id
+        if: steps.check-vars.outputs.can_sync == 'true'
+        run: |
+          # Prioriza o payload do repository_dispatch; fallback para workflow_dispatch input
+          PROCESS_ID="${{ github.event.client_payload.process_id || inputs.process_id }}"
+
+          if [ -z "$PROCESS_ID" ]; then
+            echo "❌ process_id não informado no payload."
+            exit 1
+          fi
+
+          echo "📌 Process ID: $PROCESS_ID"
+          echo "process_id=$PROCESS_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Sincronizar processo com Google Sheets
+        if: steps.check-vars.outputs.can_sync == 'true'
+        run: node src/sync-one.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || vars.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          PROCESS_ID: ${{ steps.resolve-id.outputs.process_id }}
