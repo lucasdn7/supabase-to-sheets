@@ -60,20 +60,24 @@ function recordToRow(record) {
   const sgpe = record.process_number ?? "";
   const link = record.link_plataforma_governo ?? "";
  
-  // SGPE vira link clicável se houver URL cadastrada
-  const sgpeCell = link ? `=HYPERLINK("${link}","${sgpe}")` : sgpe;
+  // Sanitiza o link: remove aspas duplas que quebrariam a fórmula HYPERLINK
+  const linkLimpo = link ? link.replace(/"/g, "%22").trim() : "";
+ 
+  // Só usa HYPERLINK se o link for uma URL válida (começa com http)
+  const linkValido = linkLimpo && linkLimpo.startsWith("http");
+  const sgpeCell = linkValido ? `=HYPERLINK("${linkLimpo}","${sgpe}")` : sgpe;
  
   return [
-    sgpeCell,                                        // A – SGPE
-    nucleus,                                         // B – NÚCLEO ORIGEM
-    municipality,                                    // C – MUNICÍPIO
-    record.object ?? "",                             // D – OBJETO
-    record.tipo_de_repasse ?? "",                    // E – TIPO DE REPASSE
+    sgpeCell,                                         // A – SGPE
+    nucleus,                                          // B – NÚCLEO ORIGEM
+    municipality,                                     // C – MUNICÍPIO
+    record.object ?? "",                              // D – OBJETO
+    record.tipo_de_repasse ?? "",                     // E – TIPO DE REPASSE
     formatCurrency(record.total_concedente_value),    // F – CONCEDENTE
-    formatCurrency(record.total_proponente_value),   // G – CONTRAPARTIDA
-    formatDate(record.vigencia_date),                // H – VIGÊNCIA PT
-    record.portaria_number ?? "",                    // I – PORTARIA
-    formatContrato(record.contrato_assinado),        // J – CONTRATO ASSINADO
+    formatCurrency(record.total_proponente_value),    // G – CONTRAPARTIDA
+    formatDate(record.vigencia_date),                 // H – VIGÊNCIA PT
+    record.portaria_number ?? "",                     // I – PORTARIA
+    formatContrato(record.contrato_assinado),         // J – CONTRATO ASSINADO
   ];
 }
  
@@ -115,7 +119,7 @@ function extractSgpe(cellValue) {
  *   }
  * }
  *
- * A detecção busca na coluna D ou A por texto contendo "OBRAS {ANO}".
+ * A detecção busca em todas as colunas por texto contendo "OBRAS {ANO}".
  * A linha de total é detectada por "TOTAL {ANO}" em qualquer coluna.
  */
 function buildYearStructure(rows) {
@@ -232,7 +236,7 @@ async function upsertProcessGeinfra(record) {
         requestBody: { values: [row] },
       });
  
-      targetRowIndex = bloc.totalRow; // a linha inserida ficou nesse índice (0-based)
+      targetRowIndex = bloc.totalRow;
       console.log(`➕ SGPE ${sgpe} inserido na linha ${totalSheetRow} (bloco ${year}).`);
     } else {
       // Ano não encontrado na planilha → append no final
@@ -251,7 +255,7 @@ async function upsertProcessGeinfra(record) {
  
   // ── RECALCULO DO TOTAL DO ANO ─────────────────────────────────────────────
   if (year && yearStructure[year]?.totalRow != null) {
-    await recalcularTotal(sheets, rows, yearStructure, year, sgpeIndex.has(sgpe));
+    await recalcularTotal(sheets, yearStructure, year);
   }
 }
  
@@ -261,7 +265,7 @@ async function upsertProcessGeinfra(record) {
  *
  * Lê os dados novamente para garantir valores atualizados após a inserção.
  */
-async function recalcularTotal(sheets, _rows, yearStructure, year, wasUpdate) {
+async function recalcularTotal(sheets, yearStructure, year) {
   // Relê a planilha com valores calculados (não fórmulas) para somar
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
@@ -285,8 +289,17 @@ async function recalcularTotal(sheets, _rows, yearStructure, year, wasUpdate) {
   for (let i = bloc.dataStart; i <= bloc.dataEnd; i++) {
     const row = freshRows[i] ?? [];
     // Colunas F e G são índices 5 e 6 (0-based)
-    const valF = parseFloat(String(row[5] ?? "").replace(/[^0-9,.-]/g, "").replace(",", ".")) || 0;
-    const valG = parseFloat(String(row[6] ?? "").replace(/[^0-9,.-]/g, "").replace(",", ".")) || 0;
+    // Remove formatação de moeda (R$, pontos, espaços) e converte para número
+    const valF = parseFloat(
+      String(row[5] ?? "")
+        .replace(/[R$\s.]/g, "")
+        .replace(",", ".")
+    ) || 0;
+    const valG = parseFloat(
+      String(row[6] ?? "")
+        .replace(/[R$\s.]/g, "")
+        .replace(",", ".")
+    ) || 0;
     somaF += valF;
     somaG += valG;
   }
