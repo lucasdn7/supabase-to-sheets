@@ -1,0 +1,59 @@
+name: Sync Completo Supabase → GEINFRA Sheets
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: sync-geinfra-completo
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v5
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar variáveis obrigatórias
+        id: check-vars
+        run: |
+          echo "Verificando secrets..."
+          missing=()
+
+          for var_name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY GOOGLE_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!var_name}" ]; then
+              missing+=("$var_name")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "⚠️ Variáveis ausentes: ${missing[*]}"
+            echo "⚠️ Configure em Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          echo "✅ Variáveis obrigatórias OK."
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || vars.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Sincronizar todos os processos com Google Sheets
+        run: node src/sync-all.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || vars.SUPABASE_SERVICE_ROLE_KEY }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON || vars.GOOGLE_SERVICE_ACCOUNT_JSON }}
