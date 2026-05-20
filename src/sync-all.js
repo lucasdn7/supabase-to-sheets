@@ -1,20 +1,20 @@
 require("dotenv").config();
-
+ 
 const { fetchAllProcesses } = require("./supabase");
-const { upsertProcess } = require("./sheets");
-
+const { upsertProcessGeinfra } = require("./sheets");
+ 
 async function main() {
-  console.log("🔄 Iniciando sincronização completa Supabase → Google Sheets...");
-
+  console.log("🔄 Iniciando sincronização completa Supabase → Google Sheets (GEINFRA Obras)...");
+ 
   const processes = await fetchAllProcesses();
   console.log(`📦 ${processes.length} processo(s) encontrado(s).`);
-
+ 
   let successCount = 0;
   let errorCount = 0;
-
+ 
   for (const process of processes) {
     try {
-      await upsertProcess(process);
+      await upsertProcessGeinfra(process);
       successCount += 1;
     } catch (err) {
       errorCount += 1;
@@ -23,17 +23,17 @@ async function main() {
       );
     }
   }
-
+ 
   console.log(
     `✅ Sincronização concluída. Sucesso: ${successCount} | Falhas: ${errorCount}`
   );
+ 
   if (errorCount > 0) {
-    console.warn(
-      "⚠️ A sincronização terminou com falhas parciais. Verifique os logs acima."
-    );
+    console.warn("⚠️ A sincronização terminou com falhas parciais. Verifique os logs acima.");
+    process.exit(1);
   }
 }
-
+ 
 main().catch((err) => {
   console.error("❌ Erro fatal na sincronização:", err.message);
   process.exit(1);
