@@ -58,17 +58,9 @@ function recordToRow(record) {
   const nucleus = record.regional_nuclei?.acronym ?? "";
   const municipality = record.municipalities?.name ?? "";
   const sgpe = record.process_number ?? "";
-  const link = record.link_plataforma_governo ?? "";
- 
-  // Sanitiza o link: remove aspas duplas que quebrariam a fórmula HYPERLINK
-  const linkLimpo = link ? link.replace(/"/g, "%22").trim() : "";
- 
-  // Só usa HYPERLINK se o link for uma URL válida (começa com http)
-  const linkValido = linkLimpo && linkLimpo.startsWith("http");
-  const sgpeCell = linkValido ? `=HYPERLINK("${linkLimpo}","${sgpe}")` : sgpe;
  
   return [
-    sgpeCell,                                         // A – SGPE
+    sgpe,                                             // A – SGPE
     nucleus,                                          // B – NÚCLEO ORIGEM
     municipality,                                     // C – MUNICÍPIO
     record.object ?? "",                              // D – OBJETO
