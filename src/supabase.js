@@ -10,7 +10,7 @@ const PROCESS_SELECT = `
   process_number,
   object,
   tipo_de_repasse,
-  total_concedent_value,
+  total_concedente_value,
   total_proponente_value,
   licitado_value,
   vigencia_date,
