@@ -69,7 +69,7 @@ function recordToRow(record) {
     municipality,                                    // C – MUNICÍPIO
     record.object ?? "",                             // D – OBJETO
     record.tipo_de_repasse ?? "",                    // E – TIPO DE REPASSE
-    formatCurrency(record.total_concedent_value),    // F – CONCEDENTE
+    formatCurrency(record.total_concedente_value),    // F – CONCEDENTE
     formatCurrency(record.total_proponente_value),   // G – CONTRAPARTIDA
     formatDate(record.vigencia_date),                // H – VIGÊNCIA PT
     record.portaria_number ?? "",                    // I – PORTARIA
